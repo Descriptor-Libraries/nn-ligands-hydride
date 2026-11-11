@@ -1,0 +1,45 @@
+version: '3'
+
+services:
+
+  nn_ligands_hydride_backend:
+    image: 'descriptor-backend:latest'
+    environment:
+      POSTGRES_SERVER: descriptor_database
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWD: "${POSTGRES_PASSWD:?is not set, expected from ../.env.secrets via the .env link in this folder}"
+      POSTGRES_DB: nn_ligands_hydride_data
+      API_PREFIX: nn-ligands-hydride
+    entrypoint: bash prestart.sh
+    networks:
+      - external_network
+      - descriptor-libraries-internal
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.descriptor_libraries-nn_ligands_hydride_backend.loadbalancer.server.port=8080
+      - "traefik.http.routers.descriptor_libraries-nn_ligands_hydride_backend.rule=(Host(`descriptor-libraries.molssi.org`) && PathPrefix(`/api/nn-ligands-hydride`))"
+      - traefik.http.routers.descriptor_libraries-nn_ligands_hydride_backend.entrypoints=websecure
+      - traefik.http.routers.descriptor_libraries-nn_ligands_hydride_backend.tls.certresolver=letsencrypt
+
+  nn_ligands_hydride_frontend:
+    image: 'descriptor-frontend-alpine:latest'
+    volumes:
+      - "./public:/app/public"
+    environment:
+      - VITE_BASE_URL=/nn-ligands-hydride
+    networks:
+      - external_network
+    entrypoint: ash renameBase.sh
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.descriptor_libraries-frontend-nn_ligands_hydride.rule=(Host(`descriptor-libraries.molssi.org`) && PathPrefix(`/nn-ligands-hydride`))"
+      - "traefik.http.services.descriptor_libraries-frontend-nn_ligands_hydride.loadbalancer.server.port=3000"
+      - traefik.http.routers.descriptor_libraries-frontend-nn_ligands_hydride.entrypoints=websecure
+      - traefik.http.routers.descriptor_libraries-frontend-nn_ligands_hydride.tls.certresolver=letsencrypt
+
+networks:
+  external_network:
+    name: docker_main_net
+    external: true
+  descriptor-libraries-internal:
+    external: true
